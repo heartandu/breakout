@@ -3,32 +3,61 @@ package game
 import (
 	"fmt"
 
+	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/go-gl/mathgl/mgl32"
 
 	"breakout/src/render"
 	"breakout/src/resource"
 )
 
-type GameState int
+type State int
 
 const (
-	GameActive GameState = iota
-	GameMenu
-	GameWin
+	ActiveState State = iota
+	MenuState
+	WinState
+
+	playerVelocity float32 = 500
+)
+
+var (
+	playerSize   = mgl32.Vec2{100, 20}
+	textureFiles = map[string]struct {
+		path  string
+		alpha bool
+	}{
+		"background":  {"resources/textures/background.png", false},
+		"face":        {"resources/textures/happy.png", true},
+		"block":       {"resources/textures/block.png", false},
+		"block_solid": {"resources/textures/block_solid.png", false},
+		"paddle":      {"resources/textures/paddle.png", true},
+	}
+	levelFiles = []string{
+		"resources/levels/one.lvl",
+		"resources/levels/two.lvl",
+		"resources/levels/three.lvl",
+		"resources/levels/four.lvl",
+	}
 )
 
 type Game struct {
-	State  GameState
+	State  State
 	Keys   [1024]bool
 	Width  int
 	Height int
 
+	Levels []Level
+	Level  int
+
 	Renderer *render.SpriteRenderer
+
+	player     *Object
+	background *Object
 }
 
 func NewGame(width, height int) *Game {
 	return &Game{
-		State:  GameActive,
+		State:  ActiveState,
 		Width:  width,
 		Height: height,
 	}
@@ -57,16 +86,51 @@ func (g *Game) Init() error {
 
 	g.Renderer = render.NewSpriteRenderer(resource.GetShader("sprite"))
 
-	err = resource.LoadTexture("resources/textures/happy.png", true, "face")
+	err = g.loadTextures()
 	if err != nil {
-		return fmt.Errorf("failed to load texture: %w", err)
+		return fmt.Errorf("failed to load textures: %w", err)
 	}
+
+	err = g.loadLevels()
+	if err != nil {
+		return fmt.Errorf("failed to load levels: %w", err)
+	}
+
+	g.background = NewObject(
+		mgl32.Vec2{0, 0},
+		mgl32.Vec2{float32(g.Width), float32(g.Height)},
+		resource.GetTexture("background"),
+		nil,
+		nil,
+	)
+
+	g.player = NewObject(
+		mgl32.Vec2{float32(g.Width)/2 - playerSize.X()/2, float32(g.Height) - playerSize.Y()},
+		playerSize,
+		resource.GetTexture("paddle"),
+		nil,
+		nil,
+	)
 
 	return nil
 }
 
 func (g *Game) ProcessInput(dt float64) {
+	if g.State == ActiveState {
+		velocity := playerVelocity * float32(dt)
 
+		if g.Keys[glfw.KeyA] {
+			if g.player.Position.X() >= 0 {
+				g.player.Position[0] -= velocity
+			}
+		}
+
+		if g.Keys[glfw.KeyD] {
+			if g.player.Position.X() <= float32(g.Width)-g.player.Size.X() {
+				g.player.Position[0] += velocity
+			}
+		}
+	}
 }
 
 func (g *Game) Update(dt float64) {
@@ -74,11 +138,39 @@ func (g *Game) Update(dt float64) {
 }
 
 func (g *Game) Render() {
-	g.Renderer.DrawSprite(
-		resource.GetTexture("face"),
-		&mgl32.Vec2{200, 200},
-		&mgl32.Vec2{300, 400},
-		45,
-		&mgl32.Vec3{0, 1, 0},
-	)
+	g.background.Draw(g.Renderer)
+
+	g.Levels[g.Level].Draw(g.Renderer)
+
+	g.player.Draw(g.Renderer)
+}
+
+func (g *Game) loadTextures() (err error) {
+	for name, tFile := range textureFiles {
+		err = resource.LoadTexture(tFile.path, tFile.alpha, name)
+		if err != nil {
+			return fmt.Errorf("failed to load %s texture: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+func (g *Game) loadLevels() (err error) {
+	g.Levels = make([]Level, 0, len(levelFiles))
+
+	for i := range levelFiles {
+		var l Level
+
+		err = l.Load(levelFiles[i], g.Width, g.Height/2)
+		if err != nil {
+			return fmt.Errorf("failed to load level %s: %w", levelFiles[i], err)
+		}
+
+		g.Levels = append(g.Levels, l)
+	}
+
+	g.Level = 0
+
+	return nil
 }
