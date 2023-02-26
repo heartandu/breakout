@@ -3,6 +3,7 @@ package game
 import (
 	"fmt"
 	"math"
+	"math/rand"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/go-gl/mathgl/mgl32"
@@ -37,12 +38,18 @@ var (
 		path  string
 		alpha bool
 	}{
-		"background":  {"resources/textures/background.png", false},
-		"face":        {"resources/textures/happy.png", true},
-		"block":       {"resources/textures/block.png", false},
-		"block_solid": {"resources/textures/block_solid.png", false},
-		"paddle":      {"resources/textures/paddle.png", true},
-		"particle":    {"resources/textures/particle.png", true},
+		"background":          {"resources/textures/background.png", false},
+		"face":                {"resources/textures/happy.png", true},
+		"block":               {"resources/textures/block.png", false},
+		"block_solid":         {"resources/textures/block_solid.png", false},
+		"paddle":              {"resources/textures/paddle.png", true},
+		"particle":            {"resources/textures/particle.png", true},
+		"powerup_chaos":       {"resources/textures/powerup_chaos.png", true},
+		"powerup_confuse":     {"resources/textures/powerup_confuse.png", true},
+		"powerup_increase":    {"resources/textures/powerup_increase.png", true},
+		"powerup_passthrough": {"resources/textures/powerup_passthrough.png", true},
+		"powerup_speed":       {"resources/textures/powerup_speed.png", true},
+		"powerup_sticky":      {"resources/textures/powerup_sticky.png", true},
 	}
 	levelFiles = []string{
 		"resources/levels/one.lvl",
@@ -60,6 +67,8 @@ type Game struct {
 
 	Levels []Level
 	Level  int
+
+	PowerUps []PowerUp
 
 	Renderer  *render.SpriteRenderer
 	Effects   *render.PostProcessor
@@ -113,6 +122,8 @@ func (g *Game) Init() error {
 	if err != nil {
 		return fmt.Errorf("failed to load levels: %w", err)
 	}
+
+	g.PowerUps = make([]PowerUp, 0)
 
 	g.Particles = NewParticleGenerator(
 		resource.GetShader("particle"),
@@ -186,6 +197,13 @@ func (g *Game) Render() {
 			g.Levels[g.Level].Draw(g.Renderer)
 
 			g.player.Draw(g.Renderer)
+
+			for i := range g.PowerUps {
+				if !g.PowerUps[i].Destroyed {
+					g.PowerUps[i].Draw(g.Renderer)
+				}
+			}
+
 			g.Particles.Draw()
 			g.ball.Draw(g.Renderer)
 		}
@@ -199,6 +217,7 @@ func (g *Game) Update(dt float64) {
 	g.ball.Move(dt, g.Width)
 	g.DoCollisions()
 	g.Particles.Update(dt, &g.ball.Object, 2, mgl32.Vec2{g.ball.Radius / 2, g.ball.Radius / 2})
+	g.UpdatePowerUps(dt)
 
 	isLevelCompleted := g.Levels[g.Level].IsCompleted()
 	if isLevelCompleted {
@@ -228,9 +247,14 @@ func (g *Game) DoCollisions() {
 			if r.Collided {
 				if !brick.IsSolid {
 					brick.Destroyed = true
+					g.SpawnPowerUps(brick)
 				} else {
 					g.shakeTime = 0.05
 					g.Effects.Shake = true
+				}
+
+				if g.ball.PassThrough && !brick.IsSolid {
+					continue
 				}
 
 				if r.Dir == LeftDirection || r.Dir == RightDirection {
@@ -267,6 +291,21 @@ func (g *Game) DoCollisions() {
 		g.ball.Velocity[0] = initBallVelocity.X() * percentage * strength
 		g.ball.Velocity[1] = -1 * float32(math.Abs(float64(g.ball.Velocity.Y())))
 		g.ball.Velocity = g.ball.Velocity.Normalize().Mul(oldVelocity.Len())
+		g.ball.Stuck = g.ball.Sticky
+	}
+
+	for i := range g.PowerUps {
+		if !g.PowerUps[i].Destroyed {
+			if g.PowerUps[i].Position.Y() >= float32(g.Height) {
+				g.PowerUps[i].Destroyed = true
+			}
+
+			if CheckCollision(g.player, &g.PowerUps[i].Object) {
+				g.ActivatePowerUp(&g.PowerUps[i])
+				g.PowerUps[i].Destroyed = true
+				g.PowerUps[i].Activated = true
+			}
+		}
 	}
 }
 
@@ -282,6 +321,145 @@ func (g *Game) ResetPlayer() {
 		g.player.Position.Add(mgl32.Vec2{playerSize.X()/2 - ballRadius, -ballRadius * 2}),
 		initBallVelocity,
 	)
+}
+
+func (g *Game) SpawnPowerUps(block *Object) {
+	if shouldSpawn(75) {
+		g.PowerUps = append(g.PowerUps, NewPowerUp(
+			"speed",
+			mgl32.Vec3{0.5, 0.5, 1},
+			0,
+			block.Position,
+			resource.GetTexture("powerup_speed"),
+		))
+	}
+
+	if shouldSpawn(75) {
+		g.PowerUps = append(g.PowerUps, NewPowerUp(
+			"sticky",
+			mgl32.Vec3{1, 0.5, 1},
+			20,
+			block.Position,
+			resource.GetTexture("powerup_sticky"),
+		))
+	}
+
+	if shouldSpawn(75) {
+		g.PowerUps = append(g.PowerUps, NewPowerUp(
+			"pass-through",
+			mgl32.Vec3{0.5, 1, 0.5},
+			10,
+			block.Position,
+			resource.GetTexture("powerup_passthrough"),
+		))
+	}
+
+	if shouldSpawn(75) {
+		g.PowerUps = append(g.PowerUps, NewPowerUp(
+			"pad-size-increase",
+			mgl32.Vec3{1, 0.6, 0.4},
+			0,
+			block.Position,
+			resource.GetTexture("powerup_increase"),
+		))
+	}
+
+	if shouldSpawn(15) {
+		g.PowerUps = append(g.PowerUps, NewPowerUp(
+			"confuse",
+			mgl32.Vec3{1, 0.3, 0.3},
+			15,
+			block.Position,
+			resource.GetTexture("powerup_confuse"),
+		))
+	}
+
+	if shouldSpawn(15) {
+		g.PowerUps = append(g.PowerUps, NewPowerUp(
+			"chaos",
+			mgl32.Vec3{0.9, 0.25, 0.25},
+			15,
+			block.Position,
+			resource.GetTexture("powerup_chaos"),
+		))
+	}
+}
+
+func (g *Game) UpdatePowerUps(dt float64) {
+	for i := range g.PowerUps {
+		g.PowerUps[i].Position = g.PowerUps[i].Position.Add(g.PowerUps[i].Velocity.Mul(float32(dt)))
+
+		if g.PowerUps[i].Activated {
+			g.PowerUps[i].Duration -= dt
+
+			if g.PowerUps[i].Duration <= 0 {
+				g.PowerUps[i].Activated = false
+				switch g.PowerUps[i].Type {
+				case "sticky":
+					if !g.IsOtherPowerUpActive("sticky") {
+						g.ball.Sticky = false
+						g.player.Color = mgl32.Vec3{1, 1, 1}
+					}
+				case "pass-through":
+					if !g.IsOtherPowerUpActive("pass-through") {
+						g.ball.PassThrough = false
+						g.player.Color = mgl32.Vec3{1, 1, 1}
+					}
+				case "confuse":
+					if !g.IsOtherPowerUpActive("confuse") {
+						g.Effects.Confuse = false
+					}
+				case "chaos":
+					if !g.IsOtherPowerUpActive("chaos") {
+						g.Effects.Chaos = false
+					}
+				}
+			}
+		}
+	}
+
+	moveIndex := 0
+	for i := range g.PowerUps {
+		if !g.PowerUps[i].Destroyed || g.PowerUps[i].Activated {
+			g.PowerUps[moveIndex] = g.PowerUps[i]
+			moveIndex++
+		}
+	}
+
+	g.PowerUps = g.PowerUps[:moveIndex]
+}
+
+func (g *Game) ActivatePowerUp(powerUp *PowerUp) {
+	switch powerUp.Type {
+	case "speed":
+		g.ball.Velocity = g.ball.Velocity.Mul(1.2)
+	case "sticky":
+		g.ball.Sticky = true
+		g.player.Color = mgl32.Vec3{1, 0.5, 1}
+	case "pass-through":
+		g.ball.PassThrough = true
+		g.ball.Color = mgl32.Vec3{1, 0.5, 0.5}
+	case "pad-size-increase":
+		g.player.Size[0] += 50
+	case "confuse":
+		if !g.Effects.Chaos {
+			g.Effects.Confuse = true
+		}
+	case "chaos":
+		if !g.Effects.Confuse {
+			g.Effects.Chaos = true
+		}
+	}
+}
+
+func (g *Game) IsOtherPowerUpActive(t string) bool {
+	for i := range g.PowerUps {
+		if g.PowerUps[i].Activated && g.PowerUps[i].Type == t {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (g *Game) loadShaders() error {
@@ -323,4 +501,9 @@ func (g *Game) loadLevels() (err error) {
 	g.Level = 0
 
 	return nil
+}
+
+func shouldSpawn(chance int) bool {
+	r := rand.Int() % chance
+	return r == 0
 }

@@ -10,6 +10,9 @@ type Ball struct {
 	Radius float32
 	Stuck  bool
 
+	Sticky      bool
+	PassThrough bool
+
 	Object
 }
 
