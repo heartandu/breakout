@@ -46,7 +46,7 @@ func (t *Texture2D) Generate(width, height int32, data unsafe.Pointer) {
 		0,
 		t.ImageFormat,
 		gl.UNSIGNED_BYTE,
-		gl.Ptr(data),
+		data,
 	)
 
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, t.WrapS)

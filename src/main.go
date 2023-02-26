@@ -37,7 +37,10 @@ func main() {
 		handleFatalError(fmt.Errorf("failed to init OpenGL: %w", err))
 	}
 
-	breakout.Init()
+	err = breakout.Init()
+	if err != nil {
+		handleFatalError(fmt.Errorf("failed to init game: %w", err))
+	}
 	defer breakout.Cleanup()
 
 	var deltaTime, lastTime float64

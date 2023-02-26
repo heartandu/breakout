@@ -17,30 +17,36 @@ var (
 	textures = make(map[string]*texture.Texture2D)
 )
 
-func LoadShader(vShaderFileName, fShaderFileName, gShaderFileName, name string) (*shader.Shader, error) {
+func LoadShader(vShaderFileName, fShaderFileName, gShaderFileName, name string) error {
 	var err error
+	if _, ok := shaders[name]; ok {
+		return fmt.Errorf("shader %s is already loaded", name)
+	}
 
 	shaders[name], err = loadShaderFromFile(vShaderFileName, fShaderFileName, gShaderFileName)
 	if err != nil {
-		return nil, fmt.Errorf("faled to load shader from file: %w", err)
+		return fmt.Errorf("faled to load shader from file: %w", err)
 	}
 
-	return shaders[name], nil
+	return nil
 }
 
 func GetShader(name string) *shader.Shader {
 	return shaders[name]
 }
 
-func LoadTexture(fileName string, alpha bool, name string) (*texture.Texture2D, error) {
+func LoadTexture(fileName string, alpha bool, name string) error {
 	var err error
+	if _, ok := textures[name]; ok {
+		return fmt.Errorf("texture %s is already loaded", name)
+	}
 
 	textures[name], err = loadTextureFromFile(fileName, alpha)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load texture from file: %w", err)
+		return fmt.Errorf("failed to load texture from file: %w", err)
 	}
 
-	return textures[name], nil
+	return nil
 }
 
 func GetTexture(name string) *texture.Texture2D {
@@ -115,7 +121,7 @@ func loadTextureFromFile(fileName string, alpha bool) (*texture.Texture2D, error
 		t.ImageFormat = gl.RGBA
 	}
 
-	data, width, height, _, cleanup, err := stbi.Load(fileName, true, 0)
+	data, width, height, _, cleanup, err := stbi.Load(fileName, false, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load image: %w", err)
 	}
