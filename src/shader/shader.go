@@ -130,6 +130,14 @@ func (s *Shader) SetMatrix4(name string, matrix *mgl32.Mat4, useShader bool) {
 	gl.UniformMatrix4fv(s.uniformLocation(name), 1, false, &matrix[0])
 }
 
+func (s *Shader) SetAnything(name string, useShader bool, callback func(locationID int32)) {
+	if useShader {
+		s.Use()
+	}
+
+	callback(s.uniformLocation(name))
+}
+
 func (s *Shader) uniformLocation(name string) int32 {
 	return gl.GetUniformLocation(s.ID, gl.Str(name+"\x00"))
 }

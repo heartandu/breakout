@@ -29,8 +29,9 @@ var (
 	shaderFiles      = map[string]struct {
 		v, f, g string
 	}{
-		"sprite":   {"resources/shaders/sprite.vert", "resources/shaders/sprite.frag", ""},
-		"particle": {"resources/shaders/particle.vert", "resources/shaders/particle.frag", ""},
+		"sprite":         {"resources/shaders/sprite.vert", "resources/shaders/sprite.frag", ""},
+		"particle":       {"resources/shaders/particle.vert", "resources/shaders/particle.frag", ""},
+		"postprocessing": {"resources/shaders/postprocessing.vert", "resources/shaders/postprocessing.frag", ""},
 	}
 	textureFiles = map[string]struct {
 		path  string
@@ -61,11 +62,14 @@ type Game struct {
 	Level  int
 
 	Renderer  *render.SpriteRenderer
+	Effects   *render.PostProcessor
 	Particles *ParticleGenerator
 
 	ball       *Ball
 	player     *Object
 	background *Object
+
+	shakeTime float64
 }
 
 func NewGame(width, height int) *Game {
@@ -95,6 +99,10 @@ func (g *Game) Init() error {
 	resource.GetShader("particle").SetMatrix4("projection", &projection, false)
 
 	g.Renderer = render.NewSpriteRenderer(resource.GetShader("sprite"))
+	g.Effects, err = render.NewPostProcessor(resource.GetShader("postprocessing"), g.Width, g.Height)
+	if err != nil {
+		return fmt.Errorf("failed to create post processor: %w", err)
+	}
 
 	err = g.loadTextures()
 	if err != nil {
@@ -170,13 +178,20 @@ func (g *Game) ProcessInput(dt float64) {
 
 func (g *Game) Render() {
 	if g.State == ActiveState {
-		g.background.Draw(g.Renderer)
+		g.Effects.BeginRender()
 
-		g.Levels[g.Level].Draw(g.Renderer)
+		{
+			g.background.Draw(g.Renderer)
 
-		g.player.Draw(g.Renderer)
-		g.Particles.Draw()
-		g.ball.Draw(g.Renderer)
+			g.Levels[g.Level].Draw(g.Renderer)
+
+			g.player.Draw(g.Renderer)
+			g.Particles.Draw()
+			g.ball.Draw(g.Renderer)
+		}
+
+		g.Effects.EndRender()
+		g.Effects.Render(glfw.GetTime())
 	}
 }
 
@@ -197,6 +212,13 @@ func (g *Game) Update(dt float64) {
 		g.ResetLevel()
 		g.ResetPlayer()
 	}
+
+	if g.shakeTime > 0 {
+		g.shakeTime -= dt
+		if g.shakeTime <= 0 {
+			g.Effects.Shake = false
+		}
+	}
 }
 
 func (g *Game) DoCollisions() {
@@ -206,6 +228,9 @@ func (g *Game) DoCollisions() {
 			if r.Collided {
 				if !brick.IsSolid {
 					brick.Destroyed = true
+				} else {
+					g.shakeTime = 0.05
+					g.Effects.Shake = true
 				}
 
 				if r.Dir == LeftDirection || r.Dir == RightDirection {
