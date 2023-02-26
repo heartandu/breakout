@@ -2,6 +2,7 @@ package game
 
 import (
 	"fmt"
+	"math"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/go-gl/mathgl/mgl32"
@@ -22,9 +23,9 @@ const (
 )
 
 var (
-	playerSize   = mgl32.Vec2{100, 20}
-	ballVelocity = mgl32.Vec2{100, -350}
-	textureFiles = map[string]struct {
+	playerSize       = mgl32.Vec2{100, 20}
+	initBallVelocity = mgl32.Vec2{100, -350}
+	textureFiles     = map[string]struct {
 		path  string
 		alpha bool
 	}{
@@ -118,7 +119,7 @@ func (g *Game) Init() error {
 	g.ball = NewBall(
 		g.player.Position.Add(mgl32.Vec2{playerSize.X()/2 - ballRadius, -ballRadius * 2}),
 		ballRadius,
-		ballVelocity,
+		initBallVelocity,
 		resource.GetTexture("face"),
 	)
 
@@ -155,11 +156,6 @@ func (g *Game) ProcessInput(dt float64) {
 	}
 }
 
-func (g *Game) Update(dt float64) {
-	g.ball.Move(dt, g.Width)
-	g.DoCollisions()
-}
-
 func (g *Game) Render() {
 	if g.State == ActiveState {
 		g.background.Draw(g.Renderer)
@@ -171,16 +167,74 @@ func (g *Game) Render() {
 	}
 }
 
+func (g *Game) Update(dt float64) {
+	g.ball.Move(dt, g.Width)
+	g.DoCollisions()
+
+	if g.ball.Position.Y() >= float32(g.Height) {
+		g.ResetLevel()
+		g.ResetPlayer()
+	}
+}
+
 func (g *Game) DoCollisions() {
 	for _, brick := range g.Levels[g.Level].Bricks {
 		if !brick.Destroyed {
-			if CheckBallCollision(g.ball, brick) {
+			r := CheckBallCollision(g.ball, brick)
+			if r.Collided {
 				if !brick.IsSolid {
 					brick.Destroyed = true
+				}
+
+				if r.Dir == LeftDirection || r.Dir == RightDirection {
+					g.ball.Velocity[0] = -g.ball.Velocity[0]
+					penetration := g.ball.Radius - float32(math.Abs(float64(r.Diff.X())))
+
+					if r.Dir == LeftDirection {
+						g.ball.Position[0] += penetration
+					} else {
+						g.ball.Position[0] -= penetration
+					}
+				} else {
+					g.ball.Velocity[1] = -g.ball.Velocity[1]
+					penetration := g.ball.Radius - float32(math.Abs(float64(r.Diff.Y())))
+
+					if r.Dir == UpDirection {
+						g.ball.Position[1] -= penetration
+					} else {
+						g.ball.Position[1] += penetration
+					}
 				}
 			}
 		}
 	}
+
+	r := CheckBallCollision(g.ball, g.player)
+	if !g.ball.Stuck && r.Collided {
+		centerBoard := g.player.Position.X() + g.player.Size.X()/2
+		distance := g.ball.Position.X() + g.ball.Radius - centerBoard
+		percentage := distance / (g.player.Size.X() / 2)
+
+		var strength float32 = 2
+		oldVelocity := g.ball.Velocity
+		g.ball.Velocity[0] = initBallVelocity.X() * percentage * strength
+		g.ball.Velocity[1] = -1 * float32(math.Abs(float64(g.ball.Velocity.Y())))
+		g.ball.Velocity = g.ball.Velocity.Normalize().Mul(oldVelocity.Len())
+	}
+}
+
+func (g *Game) ResetLevel() {
+	for _, brick := range g.Levels[g.Level].Bricks {
+		brick.Destroyed = false
+	}
+}
+
+func (g *Game) ResetPlayer() {
+	g.player.Position = mgl32.Vec2{float32(g.Width)/2 - playerSize.X()/2, float32(g.Height) - playerSize.Y()}
+	g.ball.Reset(
+		g.player.Position.Add(mgl32.Vec2{playerSize.X()/2 - ballRadius, -ballRadius * 2}),
+		initBallVelocity,
+	)
 }
 
 func (g *Game) loadTextures() (err error) {
