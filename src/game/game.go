@@ -18,10 +18,12 @@ const (
 	WinState
 
 	playerVelocity float32 = 500
+	ballRadius     float32 = 12.5
 )
 
 var (
 	playerSize   = mgl32.Vec2{100, 20}
+	ballVelocity = mgl32.Vec2{100, -350}
 	textureFiles = map[string]struct {
 		path  string
 		alpha bool
@@ -51,6 +53,7 @@ type Game struct {
 
 	Renderer *render.SpriteRenderer
 
+	ball       *Ball
 	player     *Object
 	background *Object
 }
@@ -112,6 +115,13 @@ func (g *Game) Init() error {
 		nil,
 	)
 
+	g.ball = NewBall(
+		g.player.Position.Add(mgl32.Vec2{playerSize.X()/2 - ballRadius, -ballRadius * 2}),
+		ballRadius,
+		ballVelocity,
+		resource.GetTexture("face"),
+	)
+
 	return nil
 }
 
@@ -122,27 +132,42 @@ func (g *Game) ProcessInput(dt float64) {
 		if g.Keys[glfw.KeyA] {
 			if g.player.Position.X() >= 0 {
 				g.player.Position[0] -= velocity
+
+				if g.ball.Stuck {
+					g.ball.Position[0] -= velocity
+				}
 			}
 		}
 
 		if g.Keys[glfw.KeyD] {
 			if g.player.Position.X() <= float32(g.Width)-g.player.Size.X() {
 				g.player.Position[0] += velocity
+
+				if g.ball.Stuck {
+					g.ball.Position[0] += velocity
+				}
 			}
+		}
+
+		if g.Keys[glfw.KeySpace] {
+			g.ball.Stuck = false
 		}
 	}
 }
 
 func (g *Game) Update(dt float64) {
-
+	g.ball.Move(dt, g.Width)
 }
 
 func (g *Game) Render() {
-	g.background.Draw(g.Renderer)
+	if g.State == ActiveState {
+		g.background.Draw(g.Renderer)
 
-	g.Levels[g.Level].Draw(g.Renderer)
+		g.Levels[g.Level].Draw(g.Renderer)
 
-	g.player.Draw(g.Renderer)
+		g.player.Draw(g.Renderer)
+		g.ball.Draw(g.Renderer)
+	}
 }
 
 func (g *Game) loadTextures() (err error) {

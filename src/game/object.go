@@ -19,18 +19,6 @@ type Object struct {
 	Sprite *texture.Texture2D
 }
 
-func NewDefaultObject() *Object {
-	return &Object{
-		Position:  mgl32.Vec2{0, 0},
-		Size:      mgl32.Vec2{1, 1},
-		Velocity:  mgl32.Vec2{0, 0},
-		Color:     mgl32.Vec3{1, 1, 1},
-		Rotation:  0,
-		IsSolid:   false,
-		Destroyed: false,
-	}
-}
-
 func NewObject(
 	position, size mgl32.Vec2,
 	sprite *texture.Texture2D,
