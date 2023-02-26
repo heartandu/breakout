@@ -171,7 +171,15 @@ func (g *Game) Update(dt float64) {
 	g.ball.Move(dt, g.Width)
 	g.DoCollisions()
 
-	if g.ball.Position.Y() >= float32(g.Height) {
+	isLevelCompleted := g.Levels[g.Level].IsCompleted()
+	if isLevelCompleted {
+		g.Level++
+		if g.Level > len(levelFiles) {
+			g.Level = 0
+		}
+	}
+
+	if isLevelCompleted || g.ball.Position.Y() >= float32(g.Height) {
 		g.ResetLevel()
 		g.ResetPlayer()
 	}
