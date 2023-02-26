@@ -157,6 +157,7 @@ func (g *Game) ProcessInput(dt float64) {
 
 func (g *Game) Update(dt float64) {
 	g.ball.Move(dt, g.Width)
+	g.DoCollisions()
 }
 
 func (g *Game) Render() {
@@ -167,6 +168,18 @@ func (g *Game) Render() {
 
 		g.player.Draw(g.Renderer)
 		g.ball.Draw(g.Renderer)
+	}
+}
+
+func (g *Game) DoCollisions() {
+	for _, brick := range g.Levels[g.Level].Bricks {
+		if !brick.Destroyed {
+			if CheckBallCollision(g.ball, brick) {
+				if !brick.IsSolid {
+					brick.Destroyed = true
+				}
+			}
+		}
 	}
 }
 
