@@ -20,12 +20,19 @@ const (
 
 	playerVelocity float32 = 500
 	ballRadius     float32 = 12.5
+	particleAmount         = 2000
 )
 
 var (
 	playerSize       = mgl32.Vec2{100, 20}
 	initBallVelocity = mgl32.Vec2{100, -350}
-	textureFiles     = map[string]struct {
+	shaderFiles      = map[string]struct {
+		v, f, g string
+	}{
+		"sprite":   {"resources/shaders/sprite.vert", "resources/shaders/sprite.frag", ""},
+		"particle": {"resources/shaders/particle.vert", "resources/shaders/particle.frag", ""},
+	}
+	textureFiles = map[string]struct {
 		path  string
 		alpha bool
 	}{
@@ -34,6 +41,7 @@ var (
 		"block":       {"resources/textures/block.png", false},
 		"block_solid": {"resources/textures/block_solid.png", false},
 		"paddle":      {"resources/textures/paddle.png", true},
+		"particle":    {"resources/textures/particle.png", true},
 	}
 	levelFiles = []string{
 		"resources/levels/one.lvl",
@@ -52,7 +60,8 @@ type Game struct {
 	Levels []Level
 	Level  int
 
-	Renderer *render.SpriteRenderer
+	Renderer  *render.SpriteRenderer
+	Particles *ParticleGenerator
 
 	ball       *Ball
 	player     *Object
@@ -74,19 +83,16 @@ func (g *Game) Cleanup() {
 }
 
 func (g *Game) Init() error {
-	err := resource.LoadShader(
-		"resources/shaders/sprite.vert",
-		"resources/shaders/sprite.frag",
-		"",
-		"sprite",
-	)
+	err := g.loadShaders()
 	if err != nil {
-		return fmt.Errorf("failed to load shader: %w", err)
+		return fmt.Errorf("failed to load shaders: %w", err)
 	}
 
 	projection := mgl32.Ortho(0, float32(g.Width), float32(g.Height), 0, -1, 1)
 	resource.GetShader("sprite").SetInteger("image", 0, true)
 	resource.GetShader("sprite").SetMatrix4("projection", &projection, false)
+	resource.GetShader("particle").SetInteger("sprite", 0, true)
+	resource.GetShader("particle").SetMatrix4("projection", &projection, false)
 
 	g.Renderer = render.NewSpriteRenderer(resource.GetShader("sprite"))
 
@@ -99,6 +105,12 @@ func (g *Game) Init() error {
 	if err != nil {
 		return fmt.Errorf("failed to load levels: %w", err)
 	}
+
+	g.Particles = NewParticleGenerator(
+		resource.GetShader("particle"),
+		resource.GetTexture("particle"),
+		particleAmount,
+	)
 
 	g.background = NewObject(
 		mgl32.Vec2{0, 0},
@@ -163,6 +175,7 @@ func (g *Game) Render() {
 		g.Levels[g.Level].Draw(g.Renderer)
 
 		g.player.Draw(g.Renderer)
+		g.Particles.Draw()
 		g.ball.Draw(g.Renderer)
 	}
 }
@@ -170,6 +183,7 @@ func (g *Game) Render() {
 func (g *Game) Update(dt float64) {
 	g.ball.Move(dt, g.Width)
 	g.DoCollisions()
+	g.Particles.Update(dt, &g.ball.Object, 2, mgl32.Vec2{g.ball.Radius / 2, g.ball.Radius / 2})
 
 	isLevelCompleted := g.Levels[g.Level].IsCompleted()
 	if isLevelCompleted {
@@ -243,6 +257,17 @@ func (g *Game) ResetPlayer() {
 		g.player.Position.Add(mgl32.Vec2{playerSize.X()/2 - ballRadius, -ballRadius * 2}),
 		initBallVelocity,
 	)
+}
+
+func (g *Game) loadShaders() error {
+	for name, sFile := range shaderFiles {
+		err := resource.LoadShader(sFile.v, sFile.f, sFile.g, name)
+		if err != nil {
+			return fmt.Errorf("failed to load %s shader: %w", name, err)
+		}
+	}
+
+	return nil
 }
 
 func (g *Game) loadTextures() (err error) {
