@@ -10,6 +10,7 @@ import (
 
 	"breakout/src/render"
 	"breakout/src/resource"
+	"breakout/src/sound"
 )
 
 type State int
@@ -78,6 +79,8 @@ type Game struct {
 	player     *Object
 	background *Object
 
+	soundsPlayer *sound.Player
+
 	shakeTime float64
 }
 
@@ -89,10 +92,18 @@ func NewGame(width, height int) *Game {
 	}
 }
 
-func (g *Game) Cleanup() {
+func (g *Game) Cleanup() error {
 	if g.Renderer != nil {
 		g.Renderer.Cleanup()
 	}
+
+	if g.soundsPlayer != nil {
+		if err := g.soundsPlayer.Cleanup(); err != nil {
+			return fmt.Errorf("failed to cleanup sounds player: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (g *Game) Init() error {
@@ -153,6 +164,13 @@ func (g *Game) Init() error {
 		initBallVelocity,
 		resource.GetTexture("face"),
 	)
+
+	g.soundsPlayer, err = sound.NewPlayer()
+	if err != nil {
+		return fmt.Errorf("failed to create sounds player: %w", err)
+	}
+
+	g.soundsPlayer.PlayBgMusic()
 
 	return nil
 }
@@ -248,9 +266,11 @@ func (g *Game) DoCollisions() {
 				if !brick.IsSolid {
 					brick.Destroyed = true
 					g.SpawnPowerUps(brick)
+					g.soundsPlayer.PlayNonSolidBlockBleep()
 				} else {
 					g.shakeTime = 0.05
 					g.Effects.Shake = true
+					g.soundsPlayer.PlaySolidBlockBleep()
 				}
 
 				if g.ball.PassThrough && !brick.IsSolid {
@@ -292,6 +312,8 @@ func (g *Game) DoCollisions() {
 		g.ball.Velocity[1] = -1 * float32(math.Abs(float64(g.ball.Velocity.Y())))
 		g.ball.Velocity = g.ball.Velocity.Normalize().Mul(oldVelocity.Len())
 		g.ball.Stuck = g.ball.Sticky
+
+		g.soundsPlayer.PlayPaddleBleep()
 	}
 
 	for i := range g.PowerUps {
@@ -304,6 +326,7 @@ func (g *Game) DoCollisions() {
 				g.ActivatePowerUp(&g.PowerUps[i])
 				g.PowerUps[i].Destroyed = true
 				g.PowerUps[i].Activated = true
+				g.soundsPlayer.PlayPowerUp()
 			}
 		}
 	}
