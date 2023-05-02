@@ -24,7 +24,7 @@ const (
 	fShaderFileName = "resources/shaders/text2d.frag"
 	shaderName      = "text"
 	dpi             = 72
-	baselineXOffset = 10
+	baselineXOffset = 0
 )
 
 type TextRenderer struct {
@@ -204,7 +204,7 @@ func newCharacterTexture(img *image.RGBA) uint32 {
 		int32(img.Bounds().Dy()),
 		0,
 		gl.RGBA,
-		gl.UNSIGNED_INT,
+		gl.UNSIGNED_BYTE,
 		gl.Ptr(img.Pix),
 	)
 

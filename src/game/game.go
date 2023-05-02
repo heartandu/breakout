@@ -16,13 +16,15 @@ import (
 type State int
 
 const (
-	ActiveState State = iota
-	MenuState
-	WinState
+	StateActive State = iota
+	StateMenu
+	StateWin
 
 	playerVelocity float32 = 500
 	ballRadius     float32 = 12.5
 	particleAmount         = 2000
+
+	startingLives = 3
 )
 
 var (
@@ -82,6 +84,7 @@ type Game struct {
 	ball       *Ball
 	player     *Object
 	background *Object
+	lives      uint32
 
 	soundsPlayer *sound.Player
 
@@ -90,7 +93,7 @@ type Game struct {
 
 func NewGame(width, height int) *Game {
 	return &Game{
-		State:  ActiveState,
+		State:  StateActive,
 		Width:  width,
 		Height: height,
 	}
@@ -116,7 +119,7 @@ func (g *Game) Init() error {
 		return fmt.Errorf("failed to load shaders: %w", err)
 	}
 
-	projection := mgl32.Ortho(0, float32(g.Width), float32(g.Height), 0, -1, 1)
+	projection := mgl32.Ortho2D(0, float32(g.Width), float32(g.Height), 0)
 	resource.GetShader("sprite").SetInteger("image", 0, true)
 	resource.GetShader("sprite").SetMatrix4("projection", &projection, false)
 	resource.GetShader("particle").SetInteger("sprite", 0, true)
@@ -187,11 +190,13 @@ func (g *Game) Init() error {
 
 	g.soundsPlayer.PlayBgMusic()
 
+	g.lives = startingLives
+
 	return nil
 }
 
 func (g *Game) ProcessInput(dt float64) {
-	if g.State == ActiveState {
+	if g.State == StateActive {
 		velocity := playerVelocity * float32(dt)
 
 		if g.Keys[glfw.KeyA] {
@@ -221,7 +226,7 @@ func (g *Game) ProcessInput(dt float64) {
 }
 
 func (g *Game) Render() {
-	if g.State == ActiveState {
+	if g.State == StateActive {
 		g.Effects.BeginRender()
 
 		{
@@ -243,6 +248,8 @@ func (g *Game) Render() {
 
 		g.Effects.EndRender()
 		g.Effects.Render(glfw.GetTime())
+
+		g.Text.RenderText(fmt.Sprintf("Lives: %d", g.lives), 5, 5, 1, &mgl32.Vec3{1, 1, 1})
 	}
 }
 
@@ -258,10 +265,18 @@ func (g *Game) Update(dt float64) {
 		if g.Level > len(levelFiles) {
 			g.Level = 0
 		}
+
+		g.ResetLevel()
+		g.ResetPlayer()
 	}
 
-	if isLevelCompleted || g.ball.Position.Y() >= float32(g.Height) {
-		g.ResetLevel()
+	if g.ball.Position.Y() >= float32(g.Height) {
+		g.lives -= 1
+		if g.lives == 0 {
+			g.ResetLevel()
+			g.State = StateMenu
+		}
+
 		g.ResetPlayer()
 	}
 
@@ -351,6 +366,8 @@ func (g *Game) ResetLevel() {
 	for _, brick := range g.Levels[g.Level].Bricks {
 		brick.Destroyed = false
 	}
+
+	g.lives = startingLives
 }
 
 func (g *Game) ResetPlayer() {
