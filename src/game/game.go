@@ -66,10 +66,11 @@ var (
 )
 
 type Game struct {
-	State  State
-	Keys   [1024]bool
-	Width  int
-	Height int
+	State         State
+	Keys          [1024]bool
+	KeysProcessed [1024]bool
+	Width         int
+	Height        int
 
 	Levels []Level
 	Level  int
@@ -93,7 +94,7 @@ type Game struct {
 
 func NewGame(width, height int) *Game {
 	return &Game{
-		State:  StateActive,
+		State:  StateMenu,
 		Width:  width,
 		Height: height,
 	}
@@ -223,10 +224,29 @@ func (g *Game) ProcessInput(dt float64) {
 			g.ball.Stuck = false
 		}
 	}
+
+	if g.State == StateMenu {
+		if g.Keys[glfw.KeyEnter] && !g.KeysProcessed[glfw.KeyEnter] {
+			g.State = StateActive
+			g.KeysProcessed[glfw.KeyEnter] = true
+		}
+		if g.Keys[glfw.KeyW] && !g.KeysProcessed[glfw.KeyW] {
+			g.Level = (g.Level + 1) % len(g.Levels)
+			g.KeysProcessed[glfw.KeyW] = true
+		}
+		if g.Keys[glfw.KeyS] && !g.KeysProcessed[glfw.KeyS] {
+			if g.Level > 0 {
+				g.Level--
+			} else {
+				g.Level = len(g.Levels) - 1
+			}
+			g.KeysProcessed[glfw.KeyS] = true
+		}
+	}
 }
 
 func (g *Game) Render() {
-	if g.State == StateActive {
+	if g.State == StateActive || g.State == StateMenu {
 		g.Effects.BeginRender()
 
 		{
@@ -250,6 +270,11 @@ func (g *Game) Render() {
 		g.Effects.Render(glfw.GetTime())
 
 		g.Text.RenderText(fmt.Sprintf("Lives: %d", g.lives), 5, 5, 1, &mgl32.Vec3{1, 1, 1})
+	}
+
+	if g.State == StateMenu {
+		g.Text.RenderText("Press ENTER to start", 250, float32(g.Height)/2, 1, &mgl32.Vec3{1, 1, 1})
+		g.Text.RenderText("Press W or S to select level", 245, float32(g.Height)/2+20, 0.75, &mgl32.Vec3{1, 1, 1})
 	}
 }
 

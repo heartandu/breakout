@@ -106,6 +106,7 @@ func keyCallback(window *glfw.Window, key glfw.Key, scancode int, action glfw.Ac
 			breakout.Keys[key] = true
 		} else if action == glfw.Release {
 			breakout.Keys[key] = false
+			breakout.KeysProcessed[key] = false
 		}
 	}
 }
