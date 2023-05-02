@@ -243,10 +243,18 @@ func (g *Game) ProcessInput(dt float64) {
 			g.KeysProcessed[glfw.KeyS] = true
 		}
 	}
+
+	if g.State == StateWin {
+		if g.Keys[glfw.KeyEnter] {
+			g.KeysProcessed[glfw.KeyEnter] = true
+			g.Effects.Chaos = false
+			g.State = StateMenu
+		}
+	}
 }
 
 func (g *Game) Render() {
-	if g.State == StateActive || g.State == StateMenu {
+	if g.State == StateActive || g.State == StateMenu || g.State == StateWin {
 		g.Effects.BeginRender()
 
 		{
@@ -276,6 +284,11 @@ func (g *Game) Render() {
 		g.Text.RenderText("Press ENTER to start", 250, float32(g.Height)/2, 1, &mgl32.Vec3{1, 1, 1})
 		g.Text.RenderText("Press W or S to select level", 245, float32(g.Height)/2+20, 0.75, &mgl32.Vec3{1, 1, 1})
 	}
+
+	if g.State == StateWin {
+		g.Text.RenderText("You WON!!!", 320, float32(g.Height)/2-20, 1, &mgl32.Vec3{0, 1, 0})
+		g.Text.RenderText("Press ENTER to retry or ESC to quit", 130, float32(g.Height)/2, 1, &mgl32.Vec3{1, 1, 0})
+	}
 }
 
 func (g *Game) Update(dt float64) {
@@ -285,14 +298,11 @@ func (g *Game) Update(dt float64) {
 	g.UpdatePowerUps(dt)
 
 	isLevelCompleted := g.Levels[g.Level].IsCompleted()
-	if isLevelCompleted {
-		g.Level++
-		if g.Level > len(levelFiles) {
-			g.Level = 0
-		}
-
+	if g.State == StateActive && isLevelCompleted {
 		g.ResetLevel()
 		g.ResetPlayer()
+		g.Effects.Chaos = true
+		g.State = StateWin
 	}
 
 	if g.ball.Position.Y() >= float32(g.Height) {
