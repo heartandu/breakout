@@ -31,6 +31,9 @@ type TextRenderer struct {
 	chars map[rune]*character
 	s     *shader.Shader
 
+	width  int
+	height int
+
 	vao uint32
 	vbo uint32
 }
@@ -143,6 +146,12 @@ func (r *TextRenderer) RenderText(text string, x, y, scale float32, color *mgl32
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 }
 
+func (r *TextRenderer) Cleanup() {
+	for char := range r.chars {
+		gl.DeleteTextures(1, &r.chars[char].textureID)
+	}
+}
+
 func loadFont(fontPath string) (*truetype.Font, error) {
 	bytes, err := os.ReadFile(fontPath)
 	if err != nil {
@@ -165,7 +174,7 @@ type character struct {
 }
 
 func newCharacter(ttf *truetype.Font, c *freetype.Context, bg *image.Uniform, fontSize int, r rune) (*character, error) {
-	glyphBounds := ttf.Bounds(fixed.Int26_6((fontSize)))
+	glyphBounds := ttf.Bounds(fixed.Int26_6(fontSize))
 	glyphWidth := int(glyphBounds.Max.X - glyphBounds.Min.X)
 	glyphHeight := int(glyphBounds.Max.Y - glyphBounds.Min.Y)
 

@@ -105,6 +105,10 @@ func (g *Game) Cleanup() error {
 		g.Renderer.Cleanup()
 	}
 
+	if g.Text != nil {
+		g.Text.Cleanup()
+	}
+
 	if g.soundsPlayer != nil {
 		if err := g.soundsPlayer.Cleanup(); err != nil {
 			return fmt.Errorf("failed to cleanup sounds player: %w", err)
