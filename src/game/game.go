@@ -58,6 +58,9 @@ var (
 		"resources/levels/three.lvl",
 		"resources/levels/four.lvl",
 	}
+	fontFiles = map[string]int{
+		"resources/fonts/ocraext.ttf": 24,
+	}
 )
 
 type Game struct {
@@ -73,6 +76,7 @@ type Game struct {
 
 	Renderer  *render.SpriteRenderer
 	Effects   *render.PostProcessor
+	Text      *render.TextRenderer
 	Particles *ParticleGenerator
 
 	ball       *Ball
@@ -122,6 +126,17 @@ func (g *Game) Init() error {
 	g.Effects, err = render.NewPostProcessor(resource.GetShader("postprocessing"), g.Width, g.Height)
 	if err != nil {
 		return fmt.Errorf("failed to create post processor: %w", err)
+	}
+
+	g.Text, err = render.NewTextRenderer(g.Width, g.Height)
+	if err != nil {
+		return fmt.Errorf("failed to create text renderer: %w", err)
+	}
+
+	for path, size := range fontFiles {
+		if err := g.Text.Load(path, size); err != nil {
+			return fmt.Errorf("failed to load font: %w", err)
+		}
 	}
 
 	err = g.loadTextures()
