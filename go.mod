@@ -11,7 +11,7 @@ require (
 	github.com/hajimehoshi/go-mp3 v0.3.4
 	github.com/hajimehoshi/oto/v2 v2.4.2
 	github.com/nicholasblaskey/stbi v0.0.0-20201011020041-77d6c07716e0
-	golang.org/x/image v0.14.0
+	golang.org/x/image v0.18.0
 )
 
 require (
